@@ -1,0 +1,8 @@
+__pycache__
+author_affiliations
+citation_summaries
+papers_keyword
+papers_text
+release
+
+*.txt
