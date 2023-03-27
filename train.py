@@ -27,6 +27,7 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
     for epoch in train_iterator:
         model.train()
         total_loss, steps = 0., 0
+        preds, labels = [], []
         for step, batch in enumerate(train_dataloader):
             total_steps += 1
             steps += 1
@@ -40,6 +41,14 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
             optimizer.zero_grad()
             outputs = model(**inputs)
             loss = outputs[0]
+
+            logits = outputs[1]
+            pred = torch.sigmoid(logits)
+            pred = pred.cpu().detach().numpy()
+            pred[np.isnan(pred)] = 0
+            preds.append(pred)
+            label = np.array(batch[2])
+            labels.append(label)
             # wandb.log({"loss": loss.item()}, step = total_steps)
             total_loss += loss.item()
             loss.backward()
@@ -48,8 +57,12 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
         avg_loss = total_loss / steps
         print("after {} epochs, avg loss: {}".format(epoch+1, avg_loss))
 
+        preds = np.concatenate(preds, axis=0).astype(np.float32)
+        labels = np.concatenate(labels, axis=0).astype(np.float32)
+        tauc = roc_auc_score(labels, preds)
+        print("train AUC score: {}".format(tauc))
         auc = evaluate(args, model, val_set, val_adj, x)
-        print("AUC score: {}".format(auc))
+        print("validate AUC score: {}".format(auc))
         if auc > best_auc:
             best_auc = auc
             test_auc = evaluate(args, model, test_set, test_adj, x)
