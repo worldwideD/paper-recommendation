@@ -25,11 +25,12 @@ def generate_adj(edges, n):
     return adj
 
 def generate_full_adj(edges, n):
-    line = [0] * n
-    adj = [line] * n
+    adj = np.zeros(shape=(n, n))
+    
     for edge in edges:
-        adj[edge[0]][edge[1]] = 1
-        adj[edge[1]][edge[0]] = 1
+        adj[edge[0], edge[1]] = 1
+        adj[edge[1], edge[0]] = 1
+    
     return adj
 
 def neighbors(fringe, adj):
