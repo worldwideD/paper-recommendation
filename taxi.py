@@ -12,22 +12,9 @@ import nltk.tokenize as tk
 import nltk.stem.porter as pt
 
 # nltk.download('punkt')
-
-stemmer = pt.PorterStemmer()
-
-str1 = "Ambiguity threshold"
-str2 = "ambiguity instances"
-str3 = "ambiguity thresholds"
-tokens1 = tk.word_tokenize(str1)
-tokens2 = tk.word_tokenize(str2)
-tokens3 = tk.word_tokenize(str3)
-# print([stemmer.stem(c) for c in tokens1])
-stem1 = [stemmer.stem(c) for c in tokens1]
-stem2 = [stemmer.stem(c) for c in tokens2]
-stem3 = [stemmer.stem(c) for c in tokens3]
-print(stem3 in [stem1, stem2])
-print(stem2 in [stem1, stem3])
-
+a = torch.tensor([[1, 2, 3, 4], [1, 3, 4, 1]])
+b = torch.tensor([[2, 3, 4, 1], [3, 3, 1, 4]])
+print(a * b)
 '''
 with codecs.open('keyword_title.txt', 'r', 'utf-8', 'ignore') as f:
     lines = f.readlines()
