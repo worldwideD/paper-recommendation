@@ -12,9 +12,14 @@ import nltk.tokenize as tk
 import nltk.stem.porter as pt
 
 # nltk.download('punkt')
-a = torch.tensor([[1, 2, 3, 4], [1, 3, 4, 1]])
-b = torch.tensor([[2, 3, 4, 1], [3, 3, 1, 4]])
-print(a * b)
+
+line = [0] * 10
+adj = [line] * 10
+
+adj[1, 3] = 1
+adj[3, 1] = 1
+print(adj)
+
 '''
 with codecs.open('keyword_title.txt', 'r', 'utf-8', 'ignore') as f:
     lines = f.readlines()

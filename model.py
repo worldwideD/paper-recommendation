@@ -57,14 +57,21 @@ class PredictModel(nn.Module):
 
     def forward(self, src, dst, labels, adj, x):
         m = len(src)
-        a = torch.tensor(adj).to(x.device)
+        a = torch.FloatTensor(adj).to(x.device)
         h = self.GNN(a, x)
 
         src = torch.LongTensor(src).to(x.device)
         dst = torch.LongTensor(dst).to(x.device)
         src_h = torch.index_select(h, 0, src)
         dst_h = torch.index_select(h, 0, dst)
-        # z = src_h * dst_h
+        '''
+        z = src_h * dst_h
+        logits = z.sum(dim=-1)
+        labels = torch.tensor(labels).to(logits)
+        loss = BCEWithLogitsLoss()(logits, labels)
+        predict = (logits >= 0)
+        return (loss, logits, predict)
+        '''
         z = torch.cat([src_h, dst_h], dim=1)
 
         z = self.dropout(z)
