@@ -10,6 +10,25 @@ val_devide_year = 2013  # years before it are train set
 test_devide_year = 2014  # years before it are train & val sets
 text_keys = 20  # max key phrases count for text
 
+# generate train negatives
+def generate_neg(edges, nodes):
+    train_neg_cnt = len(edges)
+    nodes_cnt = len(nodes)
+    edge_set = set(edges)
+    neg = []
+    while train_neg_cnt > 0:
+        f = np.random.randint(0, nodes_cnt, size=train_neg_cnt)
+        t = np.random.randint(0, nodes_cnt, size=train_neg_cnt)
+        for x, y in zip(f, t):
+            fr = nodes[x]
+            to = nodes[y]
+            if fr != to and not (fr, to) in edge_set and not (to, fr) in edge_set:
+                edge_set.add((fr, to))
+                neg.append([fr, to, 0])
+                train_neg_cnt -= 1
+    neg = np.array(neg)
+    return neg
+
 # generate train, val & test sets
 def devide_edges(id_edges, datadict):
     # get nodes
@@ -51,18 +70,6 @@ def devide_edges(id_edges, datadict):
     
     # generate negative samples
     train, val, test = len(train_pos), len(val_pos), len(test_pos)
-    # train negative
-    train_neg_cnt = train
-    while train_neg_cnt > 0:
-        f = np.random.randint(0, train_node, size=train_neg_cnt)
-        t = np.random.randint(0, train_node, size=train_neg_cnt)
-        for x, y in zip(f, t):
-            fr = train_node_list[x]
-            to = train_node_list[y]
-            if fr != to and not (fr, to) in edge_set and not (to, fr) in edge_set:
-                edge_set.add((fr, to))
-                train_neg.append((fr, to))
-                train_neg_cnt -= 1
     
     # val negative
     val_neg_cnt = val
@@ -92,7 +99,7 @@ def devide_edges(id_edges, datadict):
                 test_neg.append((fr, to))
                 test_neg_cnt -= 1
     print('train size: {}\nval size: {}\ntest size: {}\n'.format(train*2, val*2, test*2))
-    return msg_edges, train_pos, train_neg, val_pos, val_neg, test_pos, test_neg
+    return msg_edges, train_pos, train_node_list, val_pos, val_neg, test_pos, test_neg
 
 def read_data(graphpath, metapath, titlepath, keydirpath):
     alldatadict, allmetadata = read_metadata(metapath)
@@ -117,7 +124,7 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
     print('{} number of nodes\n{} number of edges'.format(node, len(id_edges)))
     
     # get examples
-    msg_edges, train_pos, train_neg, val_pos, val_neg, test_pos, test_neg = devide_edges(id_edges, datadict)
+    msg_edges, train_pos, train_nodes, val_pos, val_neg, test_pos, test_neg = devide_edges(id_edges, datadict)
     
     # get preprocessed title data
     title_dict = dict()
@@ -210,4 +217,4 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
         text_dict[datadict[key]['id']] = {'keyphrases': cur_keys, 'value': cur_v}
     
     print('read {} texts\n'.format(text_cnt))
-    return msg_edges, train_pos, train_neg, val_pos, val_neg, test_pos, test_neg, title_dict, text_dict
+    return msg_edges, train_pos, train_nodes, val_pos, val_neg, test_pos, test_neg, title_dict, text_dict

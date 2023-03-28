@@ -8,17 +8,16 @@ from transformers import AutoModel, AutoTokenizer
 from sklearn.metrics import roc_auc_score
 import wandb
 
-from reader import read_data
+from reader import read_data, generate_neg
 from sim import text2vec
 from tqdm import tqdm
 from graph import generate_adj, h_hop_subgraph, generate_full_adj
 from utils import set_seed, collate_fn
 from model import PredictModel
 
-def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, x):
+def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_adj, train_edges, train_nodes, x):
     total_steps = 0
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    # train_dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
     train_iterator = range(int(args.epochs))
 
     best_auc = 0.
@@ -26,6 +25,11 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
     print("start training")
     for epoch in train_iterator:
         total_steps += 1
+        # train neg
+        train_neg = generate_neg(train_edges, train_nodes)
+        train_set = np.concatenate([train_pos, train_neg], axis=0)
+
+        # training
         model.train()
         inputs = {
             'src': train_set[:, 0],
@@ -64,7 +68,6 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
     print("test AUC score: {}".format(test_auc))
 
 def evaluate(args, model, data, adj, x):
-    # eval_dataloader = DataLoader(data, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
     preds, labels = [], data[:, 2]
     model.eval()
     inputs = {
@@ -177,7 +180,7 @@ def main():
     set_seed(args)
 
     # load dataset
-    msg_edges, train_pos, train_neg, val_pos, val_neg, test_pos, test_neg, title_dict, text_dict = read_data(
+    msg_edges, train_pos, train_nodes, val_pos, val_neg, test_pos, test_neg, title_dict, text_dict = read_data(
         args.graph, args.metadata, args.title, args.textkey_dir)
     
     # get graphs
@@ -243,8 +246,8 @@ def main():
     train_set, val_set, test_set = [], [], []
     for edge in train_pos:
         train_set.append([edge[0], edge[1], 1])
-    for edge in train_neg:
-        train_set.append([edge[0], edge[1], 0])
+    # for edge in train_neg:
+    #     train_set.append([edge[0], edge[1], 0])
     
     for edge in val_pos:
         val_set.append([edge[0], edge[1], 1])
@@ -262,7 +265,7 @@ def main():
     model = PredictModel(in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers=args.layers, dropout=args.dropout)
     model = model.to(device)
 
-    train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, reps)
+    train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, train_pos, train_nodes, reps)
 
 if __name__ == "__main__":
     main()

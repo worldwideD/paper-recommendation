@@ -19,17 +19,18 @@ class GCNLayer(nn.Module):
         return h
 
 class GCN(nn.Module):
-    def __init__(self, in_feats, h_feats, n_layers):
+    def __init__(self, in_feats, h_feats, n_layers, dropout):
         super().__init__()
         self.in_feats = in_feats
         self.h_feats = h_feats
         self.n_layers = n_layers
+        self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList([GCNLayer(in_feats, h_feats), ] + [GCNLayer(h_feats, h_feats) for _ in range(n_layers-1)])
     
     def adj_helper(self, adj):
         n = adj.size()[0]
-        a = torch.eye(n).to(adj.device)
-        adj = adj + a
+        i = torch.eye(n).to(adj.device)
+        adj = adj + i
         degree = adj.sum(dim=0).unsqueeze(1)
         adj = adj / degree
         return adj
@@ -37,7 +38,9 @@ class GCN(nn.Module):
     def forward(self, adj, input):
         z = input
         a = self.adj_helper(adj)
-        for gcnlayer in self.layers:
+        for l, gcnlayer in enumerate(self.layers):
+            if l > 0:
+                z = self.dropout(z)
             z = gcnlayer(a, z)
         return z
 
@@ -51,7 +54,7 @@ class PredictModel(nn.Module):
         self.h_hops = h_hops
         self.elu = nn.ELU(inplace=True)
 
-        self.GNN = GCN(in_feats, h_feats, n_layers)
+        self.GNN = GCN(in_feats, h_feats, n_layers, dropout)
         self.out1 = nn.Linear(2 * h_feats, h_feats)
         self.out2 = nn.Linear(h_feats, 1)
 
