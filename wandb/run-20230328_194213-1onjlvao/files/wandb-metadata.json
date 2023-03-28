@@ -1,0 +1,35 @@
+{
+    "os": "Windows-10-10.0.19041-SP0",
+    "python": "3.7.4",
+    "heartbeatAt": "2023-03-28T11:42:16.301527",
+    "startedAt": "2023-03-28T11:42:13.481000",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 2060",
+    "gpu_count": 1,
+    "cpu_count": 16,
+    "cuda": null,
+    "args": [
+        "--graph",
+        "subgraph.txt",
+        "--seed",
+        "238",
+        "--epochs",
+        "10",
+        "--layers",
+        "3",
+        "--learning_rate",
+        "1e-4"
+    ],
+    "state": "running",
+    "program": "train.py",
+    "codePath": "train.py",
+    "git": {
+        "remote": "https://github.com/worldwideD/paper-recommendation.git",
+        "commit": "6c847cc7604d21ab923fdc806f20e5e29cf20924"
+    },
+    "email": "1113657075@qq.com",
+    "root": "D:/study/\u6bd5\u8bbe/dataset/AAN/aanrelease2014/aan",
+    "host": "LAPTOP-9G7A54SB",
+    "username": "worldwideD",
+    "executable": "C:\\Users\\worldwideD\\Anaconda3\\python.exe"
+}

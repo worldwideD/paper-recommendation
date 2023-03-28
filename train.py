@@ -49,7 +49,7 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
             preds.append(pred)
             label = np.array(batch[2])
             labels.append(label)
-            # wandb.log({"loss": loss.item()}, step = total_steps)
+            wandb.log({"loss": loss.item()}, step = total_steps)
             total_loss += loss.item()
             loss.backward()
             optimizer.step()
@@ -59,9 +59,10 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
 
         preds = np.concatenate(preds, axis=0).astype(np.float32)
         labels = np.concatenate(labels, axis=0).astype(np.float32)
-        tauc = roc_auc_score(labels, preds)
-        print("train AUC score: {}".format(tauc))
+        # tauc = roc_auc_score(labels, preds)
+        # print("train AUC score: {}".format(tauc))
         auc = evaluate(args, model, val_set, val_adj, x)
+        wandb.log({"dev AUC": auc}, step = total_steps)
         print("validate AUC score: {}".format(auc))
         if auc > best_auc:
             best_auc = auc
@@ -113,7 +114,7 @@ def main():
     parser.add_argument("--hidden_size", default=256, type=int, help="hidden state dimension")
     
     args = parser.parse_args()
-    # wandb.init(project="")
+    wandb.init(project="paper_recommendation")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.device = device

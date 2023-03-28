@@ -66,6 +66,12 @@ class PredictModel(nn.Module):
     def forward(self, src, dst, labels, adj, x):
         n = len(src)
         z = torch.stack([self.gnn_helper(src[i], dst[i], adj, x) for i in range(n)], dim=0)
+        logits = z.sum(dim=-1)
+        labels = torch.tensor(labels).to(logits)
+        loss = BCEWithLogitsLoss()(logits, labels)
+        predict = (logits >= 0)
+        return (loss, logits, predict)
+
         z = self.dropout(z)
         
         z = self.elu(self.out1(z))

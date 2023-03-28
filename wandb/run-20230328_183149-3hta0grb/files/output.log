@@ -1,0 +1,100 @@
+read metadata done!
+read graphdata done!
+5000 number of nodes
+29162 number of edges
+train size: 22214
+val size: 7434
+test size: 6036
+read 5000 titles
+paper paths done!
+read 5000 texts
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertModel: ['cls.predictions.transform.LayerNorm.bias', 'cls.predictions.transform.LayerNorm.weight', 'cls.seq_relationship.bias', 'cls.predictions.decoder.weight', 'cls.predictions.transform.dense.weight', 'cls.seq_relationship.weight', 'cls.predictions.transform.dense.bias', 'cls.predictions.bias']
+- This IS expected if you are initializing BertModel from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertModel from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vecs: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5000/5000 [02:27<00:00, 34.00it/s]
+start training
+Traceback (most recent call last):
+  File "train.py", line 268, in <module>
+    main()
+  File "train.py", line 265, in main
+    train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, reps)
+  File "train.py", line 44, in train
+    wandb.log(auc, step = total_steps)
+  File "C:\Users\worldwideD\Anaconda3\lib\site-packages\wandb\sdk\wandb_run.py", line 1422, in log
+    self._log(data=data, step=step, commit=commit)
+  File "C:\Users\worldwideD\Anaconda3\lib\site-packages\wandb\sdk\wandb_run.py", line 1198, in _log
+    raise ValueError("wandb.log must be passed a dictionary")
+ValueError: wandb.log must be passed a dictionary

@@ -1,0 +1,110 @@
+read metadata done!
+read graphdata done!
+5000 number of nodes
+29162 number of edges
+train size: 22214
+val size: 7434
+test size: 6036
+read 5000 titles
+paper paths done!
+read 5000 texts
+Some weights of the model checkpoint at bert-base-cased were not used when initializing BertModel: ['cls.predictions.transform.dense.bias', 'cls.seq_relationship.weight', 'cls.predictions.bias', 'cls.predictions.decoder.weight', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.transform.LayerNorm.bias', 'cls.predictions.transform.dense.weight', 'cls.seq_relationship.bias']
+- This IS expected if you are initializing BertModel from the checkpoint of a model trained on another task or with another architecture (e.g. initializing a BertForSequenceClassification model from a BertForPreTraining model).
+- This IS NOT expected if you are initializing BertModel from the checkpoint of a model that you expect to be exactly identical (initializing a BertForSequenceClassification model from a BertForSequenceClassification model).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+vecs:  99%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▏| 4970/5000 [02:25<00:00, 32.69it/s]
+
+vecs: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5000/5000 [02:26<00:00, 34.21it/s]
+after 100 epochs, loss: 0.5821627378463745
+validate AUC score: 0.8074548810448455
+after 200 epochs, loss: 0.5527659058570862
+validate AUC score: 0.8110112782278689
+after 300 epochs, loss: 0.5371367931365967
+validate AUC score: 0.8168675303119429
+after 400 epochs, loss: 0.5266285538673401
+validate AUC score: 0.8249340678103623
+after 500 epochs, loss: 0.5186556577682495
+validate AUC score: 0.8319786807974384
+after 600 epochs, loss: 0.5119243860244751
+validate AUC score: 0.8378537153314516
+after 700 epochs, loss: 0.5057834982872009
+validate AUC score: 0.8425366252345363
+after 800 epochs, loss: 0.4999595582485199
+validate AUC score: 0.8461050012054786
+after 900 epochs, loss: 0.4943390488624573
+validate AUC score: 0.8487933886355248
+after 1000 epochs, loss: 0.48886698484420776
+validate AUC score: 0.85068162198434
+best validate AUC score: 0.85068162198434
+test AUC score: 0.8497999192826253
