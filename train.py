@@ -25,6 +25,7 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
     test_auc = 0.
     print("start training")
     for epoch in train_iterator:
+        total_steps += 1
         model.train()
         inputs = {
             'src': train_set[:, 0],
@@ -36,21 +37,23 @@ def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_ad
         optimizer.zero_grad()
         outputs = model(**inputs)
         loss = outputs[0]
-        # wandb.log({"loss": loss.item()}, step = total_steps)
+        wandb.log({"loss": loss.item()}, step = total_steps)
         loss.backward()
         optimizer.step()
         auc = evaluate(args, model, val_set, val_adj, x)
+        wandb.log({"dev AUC": auc}, step = total_steps)
 
         if (epoch + 1) % 100 == 0:
+            '''
             logits = outputs[1]
             preds = torch.sigmoid(logits)
             preds = preds.cpu().detach().numpy()
             preds[np.isnan(preds)] = 0
             labels = train_set[:, 2].astype(np.float32)
             t_auc = roc_auc_score(labels, preds)
-
-            print("after {} epochs, loss: {}".format(epoch+1, loss.item()))
             print("train AUC score: {}".format(t_auc))
+            '''
+            print("after {} epochs, loss: {}".format(epoch+1, loss.item()))
             print("validate AUC score: {}".format(auc))
         
         if auc > best_auc:
@@ -166,7 +169,7 @@ def main():
     parser.add_argument("--hidden_size", default=256, type=int, help="hidden state dimension")
     
     args = parser.parse_args()
-    # wandb.init(project="")
+    wandb.init(project="paper_recommendation")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.device = device

@@ -4,6 +4,7 @@ citation_summaries
 papers_keyword
 papers_text
 release
+wandb
 
 *.txt
 taxi.py

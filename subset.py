@@ -54,4 +54,4 @@ def generate_subset(t, n, path):
     print(te)
     wry(out, path)
 
-generate_subset(100, 1500, 'subgraph.txt')
+generate_subset(400, 5000, 'subgraph.txt')

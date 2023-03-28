@@ -64,14 +64,14 @@ class PredictModel(nn.Module):
         dst = torch.LongTensor(dst).to(x.device)
         src_h = torch.index_select(h, 0, src)
         dst_h = torch.index_select(h, 0, dst)
-        '''
+        
         z = src_h * dst_h
         logits = z.sum(dim=-1)
         labels = torch.tensor(labels).to(logits)
         loss = BCEWithLogitsLoss()(logits, labels)
         predict = (logits >= 0)
         return (loss, logits, predict)
-        '''
+        
         z = torch.cat([src_h, dst_h], dim=1)
 
         z = self.dropout(z)
