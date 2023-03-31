@@ -11,13 +11,13 @@ import wandb
 from reader import read_data, generate_neg
 from sim import text2vec
 from tqdm import tqdm
-from graph import generate_adj, h_hop_subgraph, generate_full_adj
+from graph import generate_adj, h_hop_subgraph, generate_full_adj, arrange_id
 from utils import set_seed, collate_fn
 from model import PredictModel
 
-def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_adj, train_edges, train_nodes, x):
+def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_adj, msg_edges, train_x, val_x, test_x):
     total_steps = 0
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     train_iterator = range(int(args.epochs))
 
     best_auc = 0.
@@ -26,7 +26,7 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
     for epoch in train_iterator:
         total_steps += 1
         # train neg
-        train_neg = generate_neg(train_edges, train_nodes)
+        train_neg = generate_neg(train_adj.shape[0], msg_edges, train_pos)
         train_set = np.concatenate([train_pos, train_neg], axis=0)
 
         # training
@@ -36,7 +36,7 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
             'dst': train_set[:, 1],
             'labels': train_set[:, 2],
             'adj': train_adj,
-            'x': x,
+            'x': train_x,
         }
         optimizer.zero_grad()
         outputs = model(**inputs)
@@ -44,7 +44,7 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
         wandb.log({"loss": loss.item()}, step = total_steps)
         loss.backward()
         optimizer.step()
-        auc = evaluate(args, model, val_set, val_adj, x)
+        auc = evaluate(args, model, val_set, val_adj, val_x)
         wandb.log({"dev AUC": auc}, step = total_steps)
 
         if (epoch + 1) % 100 == 0:
@@ -62,7 +62,7 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
         
         if auc > best_auc:
             best_auc = auc
-            test_auc = evaluate(args, model, test_set, test_adj, x)
+            test_auc = evaluate(args, model, test_set, test_adj, test_x)
     
     print("best validate AUC score: {}".format(best_auc))
     print("test AUC score: {}".format(test_auc))
@@ -86,74 +86,6 @@ def evaluate(args, model, data, adj, x):
     auc = roc_auc_score(labels, preds)
     return auc
 
-'''
-def train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, x):
-    total_steps = 0
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    train_dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
-    train_iterator = range(int(args.epochs))
-
-    best_auc = 0.
-    test_auc = 0.
-    print("start training")
-    for epoch in train_iterator:
-        model.train()
-        total_loss, steps = 0., 0
-        for step, batch in enumerate(train_dataloader):
-            total_steps += 1
-            steps += 1
-            inputs = {
-                'src': batch[0],
-                'dst': batch[1],
-                'labels': batch[2],
-                'adj': train_adj,
-                'x': x,
-            }
-            optimizer.zero_grad()
-            outputs = model(**inputs)
-            loss = outputs[0]
-            # wandb.log({"loss": loss.item()}, step = total_steps)
-            total_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-        
-        avg_loss = total_loss / steps
-        print("after {} epochs, avg loss: {}".format(epoch+1, avg_loss))
-
-        auc = evaluate(args, model, val_set, val_adj, x)
-        print("AUC score: {}".format(auc))
-        if auc > best_auc:
-            best_auc = auc
-            test_auc = evaluate(args, model, test_set, test_adj, x)
-    
-    print("best validate AUC score: {}".format(best_auc))
-    print("test AUC score: {}".format(test_auc))
-
-def evaluate(args, model, data, adj, x):
-    eval_dataloader = DataLoader(data, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn, drop_last=False)
-    preds, labels = [], []
-    model.eval()
-    for batch in eval_dataloader:
-        inputs = {
-                'src': batch[0],
-                'dst': batch[1],
-                'labels': batch[2],
-                'adj': adj,
-                'x': x,
-            }
-        label = np.array(batch[2])
-        labels.append(label)
-        with torch.no_grad():
-            _, logits, _ = model(**inputs)
-            pred = torch.sigmoid(logits)
-            pred = pred.cpu().numpy()
-            pred[np.isnan(pred)] = 0
-            preds.append(pred)
-    preds = np.concatenate(preds, axis=0).astype(np.float32)
-    labels = np.concatenate(labels, axis=0).astype(np.float32)
-    auc = roc_auc_score(labels, preds)
-    return auc
-'''
 def main():
     parser = argparse.ArgumentParser()
 
@@ -170,6 +102,8 @@ def main():
     parser.add_argument("--seed", type=int, default=2333, help="random seed for initialization")
     parser.add_argument("--dropout", default=0.5, type=float, help="drop-out rate")
     parser.add_argument("--hidden_size", default=256, type=int, help="hidden state dimension")
+    parser.add_argument("--top_k", default=5, type=int, help="top k similar nodes")
+    parser.add_argument("--weight_decay", default=5e-4, type=float, help="weight decay")
     
     args = parser.parse_args()
     wandb.init(project="paper_recommendation")
@@ -180,14 +114,8 @@ def main():
     set_seed(args)
 
     # load dataset
-    msg_edges, train_pos, train_nodes, val_pos, val_neg, test_pos, test_neg, title_dict, text_dict = read_data(
+    msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes, title_dict, text_dict = read_data(
         args.graph, args.metadata, args.title, args.textkey_dir)
-    
-    # get graphs
-    n = len(title_dict)
-    train_adj = generate_full_adj(msg_edges, n)
-    val_adj = generate_full_adj(msg_edges + train_pos, n)
-    test_adj = generate_full_adj(msg_edges + train_pos + val_pos, n)
 
     # get vectors
     tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
@@ -196,14 +124,13 @@ def main():
     Bertmodel.eval()
     
     reps = []
+    n = len(title_dict)
     for i in tqdm(range(n), desc="vecs"):
         # text = [title_dict[i]['title']] + title_dict[i]['keyphrases'] + text_dict[i]['keyphrases']
         text = [title_dict[i]['title']] + text_dict[i]['keyphrases']
         vec = text2vec(text, tokenizer, Bertmodel, device) # [texts, emb_size]
         vec[torch.isnan(vec)] = 0.
-
         # sep = len(title_dict[i]['keyphrases'])+1
-
         # values = torch.tensor([1.] + title_dict[i]['value'] + text_dict[i]['value'], dtype=torch.float).unsqueeze(0).to(device)
         values = torch.tensor(text_dict[i]['value'], dtype=torch.float).unsqueeze(0).to(device)
         '''
@@ -225,47 +152,50 @@ def main():
         # text_dict[i]['vec'] = vec[sep:]
     reps = torch.stack(reps, dim=0).squeeze(1)
 
-    # get datas
-    '''
-    train_set, val_set, test_set = [], [], []
+    # get graphs
+    msg, train_set, val_set, test_set = [], [], [], []
+    train_dict = arrange_id(train_nodes)
     for edge in train_pos:
-        train_set.append({'src': edge[0], 'dst': edge[1], 'label': 1})
-    for edge in train_neg:
-        train_set.append({'src': edge[0], 'dst': edge[1], 'label': 0})
-    
+        train_set.append([train_dict[edge[0]], train_dict[edge[1]], 1])
+    for edge in msg_edges:
+        msg.append([train_dict[edge[0]], train_dict[edge[1]]])
+    train_adj = generate_full_adj(msg_edges, train_dict)
+    ids = torch.zeros(len(train_dict)).type(torch.int).to(args.device)
+    for k, v in train_dict.items():
+        ids[v] = k
+    train_x = torch.index_select(reps, 0, ids)
+
+    val_dict = arrange_id(val_nodes)
     for edge in val_pos:
-        val_set.append({'src': edge[0], 'dst': edge[1], 'label': 1})
+        val_set.append([val_dict[edge[0]], val_dict[edge[1]], 1])
     for edge in val_neg:
-        val_set.append({'src': edge[0], 'dst': edge[1], 'label': 0})
-    
+        val_set.append([val_dict[edge[0]], val_dict[edge[1]], 0])
+    val_adj = generate_full_adj(msg_edges + train_pos, val_dict)
+    ids = torch.zeros(len(val_dict)).type(torch.int).to(args.device)
+    for k, v in val_dict.items():
+        ids[v] = k
+    val_x = torch.index_select(reps, 0, ids)
+
+    test_dict = arrange_id(test_nodes)
     for edge in test_pos:
-        test_set.append({'src': edge[0], 'dst': edge[1], 'label': 1})
+        test_set.append([test_dict[edge[0]], test_dict[edge[1]], 1])
     for edge in test_neg:
-        test_set.append({'src': edge[0], 'dst': edge[1], 'label': 0})
-    '''
-    train_set, val_set, test_set = [], [], []
-    for edge in train_pos:
-        train_set.append([edge[0], edge[1], 1])
-    # for edge in train_neg:
-    #     train_set.append([edge[0], edge[1], 0])
-    
-    for edge in val_pos:
-        val_set.append([edge[0], edge[1], 1])
-    for edge in val_neg:
-        val_set.append([edge[0], edge[1], 0])
-    
-    for edge in test_pos:
-        test_set.append([edge[0], edge[1], 1])
-    for edge in test_neg:
-        test_set.append([edge[0], edge[1], 0])
+        test_set.append([test_dict[edge[0]], test_dict[edge[1]], 0])
+    test_adj = generate_full_adj(msg_edges + train_pos + val_pos, test_dict)
+    ids = torch.zeros(len(test_dict)).type(torch.int).to(args.device)
+    for k, v in test_dict.items():
+        ids[v] = k
+    test_x = torch.index_select(reps, 0, ids)
     
     train_set = np.array(train_set)
     val_set = np.array(val_set)
     test_set = np.array(test_set)
-    model = PredictModel(in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers=args.layers, dropout=args.dropout)
+    msg = np.array(msg)
+    model = PredictModel(
+        in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers=args.layers, dropout=args.dropout, top_k=args.top_k)
     model = model.to(device)
 
-    train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, train_pos, train_nodes, reps)
+    train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, msg, train_x, val_x, test_x)
 
 if __name__ == "__main__":
     main()

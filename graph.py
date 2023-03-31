@@ -1,6 +1,12 @@
 import numpy as np
 import torch
 
+def arrange_id(nodes):
+    ndict = dict()
+    for x, y in enumerate(nodes):
+        ndict[y] = x
+    return ndict
+
 def generate_adj(edges, n):
     if len(edges) == 0:
         return [] * n
@@ -24,14 +30,16 @@ def generate_adj(edges, n):
     
     return adj
 
-def generate_full_adj(edges, n):
+def generate_full_adj(edges, ndict):
+    n = len(ndict)
     adj = np.zeros(shape=(n, n))
     
     for edge in edges:
-        adj[edge[0], edge[1]] = 1
-        adj[edge[1], edge[0]] = 1
+        adj[ndict[edge[0]], ndict[edge[1]]] = 1
+        adj[ndict[edge[1]], ndict[edge[0]]] = 1
     
     return adj
+
 
 def neighbors(fringe, adj):
     res = set()

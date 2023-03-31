@@ -2,6 +2,7 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer
 import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
+import torch.nn.functional as F
 
 import codecs
 
@@ -13,12 +14,9 @@ import nltk.stem.porter as pt
 
 # nltk.download('punkt')
 
-line = [0] * 10
-adj = [line] * 10
+a = np.zeros(shape=(3, 3))
+print(a.shape[0])
 
-adj[1, 3] = 1
-adj[3, 1] = 1
-print(adj)
 
 '''
 with codecs.open('keyword_title.txt', 'r', 'utf-8', 'ignore') as f:
