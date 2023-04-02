@@ -103,7 +103,8 @@ def main():
     parser.add_argument("--dropout", default=0.5, type=float, help="drop-out rate")
     parser.add_argument("--hidden_size", default=256, type=int, help="hidden state dimension")
     parser.add_argument("--top_k", default=5, type=int, help="top k similar nodes")
-    parser.add_argument("--weight_decay", default=5e-4, type=float, help="weight decay")
+    parser.add_argument("--weight_decay", default=0, type=float, help="weight decay")
+    parser.add_argument("--heads", default=4, type=int, help="number of attention heads for GAT")
     
     args = parser.parse_args()
     wandb.init(project="paper_recommendation")
@@ -192,7 +193,7 @@ def main():
     test_set = np.array(test_set)
     msg = np.array(msg)
     model = PredictModel(
-        in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers=args.layers, dropout=args.dropout, top_k=args.top_k)
+        in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers1=args.layers, n_layers2=args.layers, nheads=args.heads, dropout=args.dropout, top_k=args.top_k)
     model = model.to(device)
 
     train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, msg, train_x, val_x, test_x)

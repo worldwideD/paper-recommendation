@@ -1,2 +1,1 @@
-python train.py --graph subgraph1.txt \
---seed 66
+python train.py --graph subgraph.txt --seed 514 --epochs 2000 --layers 2 --dropout 0.2 --learning_rate 1e-3

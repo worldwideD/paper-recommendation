@@ -14,10 +14,10 @@ import nltk.stem.porter as pt
 
 # nltk.download('punkt')
 
-a = np.zeros(shape=(3, 3))
-print(a.shape[0])
+a = torch.tensor([[1, 2, 3], [4, 2, 1]])
+b = torch.tensor([2, 1, 3])
 
-
+print(torch.where(a >= b, a, 0))
 '''
 with codecs.open('keyword_title.txt', 'r', 'utf-8', 'ignore') as f:
     lines = f.readlines()
