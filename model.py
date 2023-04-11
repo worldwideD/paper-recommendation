@@ -2,21 +2,19 @@ import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
 import torch.nn.functional as F
-from graph import h_hop_subgraph, generate_full_adj
 
 class GCNLayer(nn.Module):
     def __init__(self, in_feats, out_feats):
         super().__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
-        self.elu = nn.ELU(inplace=True)
         self.W = nn.Parameter(torch.zeros(size=(in_feats, out_feats, )))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
 
     def forward(self, adj, input):
         h = torch.matmul(input, self.W)
         h = torch.matmul(adj, h)
-        h = self.elu(h)
+        h = F.elu(h)
         return h
 
 class GCN(nn.Module):
@@ -123,7 +121,6 @@ class PredictModel(nn.Module):
         self.n_layers2 = n_layers2
         self.dropout = nn.Dropout(dropout)
         self.h_hops = h_hops
-        self.elu = nn.ELU(inplace=True)
         self.top_k = top_k
 
         self.GNN1 = GCN(in_feats, h_feats, n_layers1, dropout)
@@ -137,7 +134,11 @@ class PredictModel(nn.Module):
         self.GNN2 = GCN(in_feats, h_feats, n_layers2, dropout)
         # self.GNN2 = GAT(in_feats, h_feats, n_layers2, nheads, 0.2, dropout)
 
-        self.bilinear = nn.Bilinear(in_feats, h_feats * 2, 1)
+        # self.bilinear = nn.Bilinear(in_feats, h_feats * 2, 1)
+        self.PredW = nn.Parameter(torch.zeros(size=(in_feats, h_feats * 2, )))
+        nn.init.xavier_uniform_(self.PredW.data, gain=1.414)
+        self.PredB = nn.Parameter(torch.zeros(size=(1, 1, )))
+        nn.init.xavier_uniform_(self.PredB.data, gain=1.414)
     
     def get_sim_graph(self, h):
         n = h.size()[0]
@@ -155,25 +156,27 @@ class PredictModel(nn.Module):
         adj = e * a
         return adj
 
-    def forward(self, src, dst, labels, adj, x):
+    def forward(self, src, dst, labels, adj, x, mode):
         m = len(src)
         a = torch.FloatTensor(adj).to(x.device)
         h = self.GNN1(a, x)
         sim_adj = self.get_sim_graph(x)
         h_ = self.GNN2(sim_adj, x)
         h = torch.cat([h, h_], dim=1)
-        # h = h_
-
         src = torch.LongTensor(src).to(x.device)
         dst = torch.LongTensor(dst).to(x.device)
         src_h = torch.index_select(x, 0, src)
         dst_h = torch.index_select(h, 0, dst)
-        
-        # z = src_h * dst_h
-        # logits = z.sum(dim=-1)
-        logits = self.bilinear(src_h, dst_h)
-        logits = logits.squeeze(1)
+        # h = h_
+        if mode == "train":
+            # logits = self.bilinear(src_h, dst_h)
+            src_h = src_h.unsqueeze(1)
+            dst_h = dst_h.unsqueeze(2)
+            logits = src_h.matmul(self.PredW).matmul(dst_h).add(self.PredB).view(-1)
+        else:
+            dst_h = dst_h.transpose(0, 1)
+            logits = src_h.matmul(self.PredW).matmul(dst_h).add(self.PredB).view(-1)
+
         labels = torch.tensor(labels).to(logits)
         loss = BCEWithLogitsLoss()(logits, labels)
-        predict = (logits >= 0)
-        return (loss, logits, predict)
+        return (loss, logits)

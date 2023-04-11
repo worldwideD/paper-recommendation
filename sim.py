@@ -15,9 +15,6 @@ def text2vec(texts, tokenizer, model, device):
         tokenized_text = tokenizer.tokenize(mask_text)
         
         l = len(tokenized_text)
-        if l > seqlen:
-            print(l)
-            continue
         indexed_tokens = tokenizer.convert_tokens_to_ids(tokenized_text) + [0] * (seqlen - l)
         segments_ids = [1.] * l + [0.] * (seqlen - l)
 

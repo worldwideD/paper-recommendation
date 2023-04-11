@@ -51,7 +51,7 @@ def devide_edges(id_edges, datadict):
     train_node = len(train_node_list)
     val_node = len(val_node_list)
 
-    train_edges, train_neg, val_pos, val_neg, test_pos, test_neg = [], [], [], [], [], []
+    train_edges, val_pos, val_neg, test_pos, test_neg = [], [], [], [], []
     # generate positive samples
     for edge in id_edges:
         if edge[0] in test_node_list:
@@ -104,7 +104,7 @@ def devide_edges(id_edges, datadict):
                 edge_set.add((fr, to))
                 test_neg.append((fr, to))
                 test_neg_cnt -= 1
-    print('train size: {}\nval size: {}\ntest size: {}\n'.format(train*2, val*2, test*2))
+    print('train size: {}\nval size: {}\ntest size: {}\n'.format(train, val, test))
     return msg_edges, train_pos, train_node_list, val_pos, val_neg, train_node_list + val_node_list, test_pos, test_neg, train_node_list + val_node_list + test_node_list
 
 def read_data(graphpath, metapath, titlepath, keydirpath):
@@ -178,23 +178,6 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
             keystr = 'keyphrasebytextrank: '
             valstr = 'valuebytextrank: '
             str = f.read()
-            '''
-            for _ in range(text_keys):
-                k = str.find(keystr)
-                if k == -1:
-                    break
-                
-                v = str.find(valstr)
-                keyphrase = str[k+21:v-1]
-                str = str[v:]
-                sep = str.find(' ', 17)
-                value = str[:sep]
-                value = value.strip(valstr).strip()
-                value = float(value)
-                cur_keys.append(keyphrase)
-                cur_v.append(value)
-                str = str[sep:]
-            '''
             key_cnt = 0
             stemlist = []
             while key_cnt < text_keys:

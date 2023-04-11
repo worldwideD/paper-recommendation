@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
 import torch.nn.functional as F
+from sklearn.metrics import average_precision_score, recall_score, ndcg_score
 
 import codecs
 
@@ -12,12 +13,26 @@ import nltk
 import nltk.tokenize as tk
 import nltk.stem.porter as pt
 
+a = torch.tensor([[1, 2, 3], [4, 7, 6]])
+_, b = a.topk(2, dim=1, largest=True)
+print(b)
+
 # nltk.download('punkt')
+# a = np.array([[0.1, 0.8, 0.7, 0.3, 0.5, 0.34], [0.4, 0.6, 0.7, 0.3, 0.5, 0.55]])
+# b = np.array([[1, 0, 0, 1, 1, 1], [0, 1, 1, 0, 1, 1]])
+'''
+a1 = np.array([0.1, 0.8, 0.7, 0.3, 0.5, 0.34])
+a2 = np.array([0.6, 0.4, 0.41, 0.35, 0.51, 0.3])
+a3 = np.array([0.4, 0.3, 0.5, 0.6, 0.31, 0.580])
+b1 = np.array([1, 0, 0, 1, 1, 1])
+b2 = np.array([1, 0, 1, 1, 0, 0])
+b3 = np.array([0, 0, 1, 1, 1, 1])
+print(ndcg_score(np.array([b1]), np.array([a1])))
+print(ndcg_score(np.array([b2]), np.array([a2])))
+print(ndcg_score(np.array([b3]), np.array([a3])))
+print(ndcg_score(np.array([b1, b2, b3]), np.array([a1, a2, a3])))
+'''
 
-a = torch.tensor([[1, 2, 3], [4, 2, 1]])
-b = torch.tensor([2, 1, 3])
-
-print(torch.where(a >= b, a, 0))
 '''
 with codecs.open('keyword_title.txt', 'r', 'utf-8', 'ignore') as f:
     lines = f.readlines()
