@@ -3,7 +3,7 @@ import random
 
 def generate_subset(t, n, path):
 
-    metapath = 'release/2014/acl-metadata.txt'
+    metapath = 'acl-metadata.txt'
     datadict, metadata = read_metadata(metapath)
     graphpath = 'graph.txt'
     graphdata = read_graphdata(graphpath)
@@ -54,4 +54,4 @@ def generate_subset(t, n, path):
     print(te)
     wry(out, path)
 
-generate_subset(400, 5000, 'subgraph.txt')
+generate_subset(800, 10000, 'subgraph5.txt')

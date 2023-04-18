@@ -147,12 +147,14 @@ class PredictModel(nn.Module):
         h2 = torch.matmul(h, self.a2).view(1, n).repeat(n, 1)
         i = torch.eye(n).to(h.device)
         a = h1 + h2 - i * 9e15
-        a = F.softmax(self.leaky_relu(a), dim=1)
+        # a = F.softmax(self.leaky_relu(a), dim=1)
+        a = F.softmax(a, dim=1)
         top = torch.topk(a, self.top_k, dim=1, largest=True, sorted=True)[0][..., -1, None]
         e = a >= top
         e = e | e.transpose(0, 1)
         e = e.type(torch.float)
-        a = F.softmax(self.leaky_relu(h1 + h2 - (1 - e) * 9e15), dim=1)
+        # a = F.softmax(self.leaky_relu(h1 + h2 - (1 - e) * 9e15), dim=1)
+        a = F.softmax(h1 + h2 - (1 - e) * 9e15, dim=1)
         adj = e * a
         return adj
 
@@ -163,11 +165,11 @@ class PredictModel(nn.Module):
         sim_adj = self.get_sim_graph(x)
         h_ = self.GNN2(sim_adj, x)
         h = torch.cat([h, h_], dim=1)
+        # h = h_
         src = torch.LongTensor(src).to(x.device)
         dst = torch.LongTensor(dst).to(x.device)
         src_h = torch.index_select(x, 0, src)
         dst_h = torch.index_select(h, 0, dst)
-        # h = h_
         if mode == "train":
             # logits = self.bilinear(src_h, dst_h)
             src_h = src_h.unsqueeze(1)

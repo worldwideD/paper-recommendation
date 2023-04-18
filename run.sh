@@ -1,1 +1,1 @@
-python train.py --graph subgraph.txt --seed 514 --epochs 2000 --layers 2 --dropout 0.2 --learning_rate 1e-3
+python train.py --gpu 1 --graph subgraph.txt --seed 325 --epochs 5000 --layers 2 --dropout 0.5 --learning_rate 2e-4 --ndcg_top_n 100 --top_k 5 --weight_decay 1e-4

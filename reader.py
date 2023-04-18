@@ -11,7 +11,7 @@ test_devide_year = 2014  # years before it are train & val sets
 text_keys = 20  # max key phrases count for text
 
 # generate train negatives
-def generate_neg(n, msg, pos):
+def generate_neg(n, msg, pos, sum):
     
     edge_set = set()
     # msg edges
@@ -22,6 +22,7 @@ def generate_neg(n, msg, pos):
     cnt = pos.shape[0]
     for i in range(cnt):
         edge_set.add((pos[i, 0], pos[i, 1]))
+    cnt = sum
     # negative
     neg = []
     while cnt > 0:
