@@ -47,14 +47,14 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
         optimizer.zero_grad()
         outputs = model(**inputs)
         loss = outputs[0]
-        wandb.log({"loss": loss.item()}, step = total_steps)
+        # wandb.log({"loss": loss.item()}, step = total_steps)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         if epoch == args.epochs-1:
             auc, ndcg, recall = evaluate(args, model, val_set, val_adj, val_x, 1)
         auc, ndcg, recall = evaluate(args, model, val_set, val_adj, val_x, 0)
-        wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
+        # wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
         if epoch >= args.epochs // 2 and ndcg > best:
             best = ndcg
             best_auc, best_ndcg, best_recall = auc, ndcg, recall
@@ -97,30 +97,8 @@ def evaluate(args, model, data, adj, x, flag):
     preds = preds.to(labels)
     recall = Recall(task="binary").to(labels)
     rec = recall(preds, labels).item()
-    # ids = torch.arange(n) * m
-    # ids = ids.to(score).type(torch.long).unsqueeze(1).repeat(1, top_n)
-    # index = (index + ids).view(-1)
-    # l = labels.index_select(0, index).view(n, -1)
-    # ndcg_list = [retrieval_normalized_dcg(sc[i], l[i]) for i in range(n)]
     ndcg_list = [retrieval_normalized_dcg(score[i], labels[i], top_n) for i in range(n)]
     ndcg = torch.mean(torch.stack(ndcg_list)).item()
-    '''
-    input_labels = input_labels.astype(np.float32)
-    n, m = data[0].shape[0], data[1].shape[0]
-    score = score.view(n, m)
-    labels = torch.tensor(input_labels).to(score)
-    top_n = 30
-    sc, index = score.topk(top_n, largest=True)
-    ids = torch.arange(n) * m
-    ids = ids.to(score).type(torch.long).unsqueeze(1).repeat(1, top_n)
-    index = (index + ids).view(-1)
-    l = labels.index_select(0, index).view(n, -1)
-    l = l.cpu().numpy()
-    sc = sc.cpu().numpy()
-    ndcg = ndcg_score(l, sc)
-    score = score.view(-1).cpu().numpy()
-    auc = roc_auc_score(input_labels, score)
-    '''
     return auc, ndcg, rec
 
 def main():
@@ -148,7 +126,7 @@ def main():
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     
-    wandb.init(project="paper_recommendation")
+    # wandb.init(project="paper_recommendation")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.device = device
@@ -183,7 +161,7 @@ def main():
             rep = title_rep
         reps.append(rep)
     reps = torch.stack(reps, dim=0).squeeze(1)
-
+    
     # get graphs
     # train set
     msg, train_set, val_set, test_set = [], [], [], []

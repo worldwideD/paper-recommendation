@@ -141,20 +141,36 @@ class PredictModel(nn.Module):
         nn.init.xavier_uniform_(self.PredB.data, gain=1.414)
     
     def get_sim_graph(self, h):
+        '''
+        n = h.size()[0]
+        h_ = h.transpose(0, 1)
+        dot_pro = torch.matmul(h, h_)
+        len = torch.sqrt(torch.sum(h * h, dim=-1))
+        len_sq = torch.matmul(len.unsqueeze(0), len.unsqueeze(1))
+        sim = dot_pro / len_sq
+        i = torch.eye(n).to(h)
+        sim = sim - i * 9e15
+        top = torch.topk(sim, self.top_k, dim=1, largest=True, sorted=True)[0][..., -1, None]
+        e = sim >= top
+        e = e | e.transpose(0, 1)
+        e = e.type(torch.float)
+        adj = sim * e
+        return adj
+        '''
         n = h.size()[0]
         h = torch.matmul(h, self.W)
         h1 = torch.matmul(h, self.a1).repeat(1, n)
         h2 = torch.matmul(h, self.a2).view(1, n).repeat(n, 1)
         i = torch.eye(n).to(h.device)
         a = h1 + h2 - i * 9e15
-        # a = F.softmax(self.leaky_relu(a), dim=1)
-        a = F.softmax(a, dim=1)
+        a = F.softmax(self.leaky_relu(a), dim=1)
+        # a = F.softmax(a, dim=1)
         top = torch.topk(a, self.top_k, dim=1, largest=True, sorted=True)[0][..., -1, None]
         e = a >= top
-        e = e | e.transpose(0, 1)
+        # e = e | e.transpose(0, 1)
         e = e.type(torch.float)
-        # a = F.softmax(self.leaky_relu(h1 + h2 - (1 - e) * 9e15), dim=1)
-        a = F.softmax(h1 + h2 - (1 - e) * 9e15, dim=1)
+        a = F.softmax(self.leaky_relu(h1 + h2 - (1 - e) * 9e15), dim=1)
+        # a = F.softmax(h1 + h2 - (1 - e) * 9e15, dim=1)
         adj = e * a
         return adj
 
