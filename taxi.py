@@ -15,16 +15,32 @@ import nltk.stem.porter as pt
 from torchmetrics.functional.retrieval.ndcg import retrieval_normalized_dcg
 from torchmetrics import AUROC, Recall
 
+from sentence_transformers import SentenceTransformer
+
 # nltk.download('punkt')
 # a = np.array([[0.1, 0.8, 0.7, 0.3, 0.5, 0.34], [0.4, 0.6, 0.7, 0.3, 0.5, 0.55]])
 # b = np.array([[1, 0, 0, 1, 1, 1], [0, 1, 1, 0, 1, 1]])
+
+x = torch.tensor([1, 2])
+y = torch.tensor([3, 3])
+z = torch.stack([x, y])
+print(z)
+
+a = torch.FloatTensor([[1, 2], [2, 3]])
+b = torch.FloatTensor([[1, 2], [3, 3]])
+c = torch.FloatTensor([[3, 3], [4, 4]])
+l = torch.stack([a, b, c], dim=0)
+l1 = torch.mean(l, dim=1)
+print(l1)
+l2 = l.view(3, -1)
+print(l2)
 
 '''
 a = torch.tensor([0.93, 0.94, 0.91, 0.92, 0.6, 0.5, 0.8, 0.7])
 b = torch.LongTensor([2, 3, 0, 3, 3, 0, 1, 2])
 print(retrieval_normalized_dcg(a, b, 6))
 '''
-
+'''
 
 tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
 
@@ -37,10 +53,15 @@ mask_text2 = '[CLS]' + text2 + '[SEP]'
 mask_text3 = '[CLS]' + text3 + '[SEP]'
 mask_t = '[CLS]' + text1 + '[SEP]' + '[CLS]' + text2 + '[SEP]'
 
+model = SentenceTransformer('bert-base-nli-mean-tokens')
+rep = model.encode([text1, text2, text3], convert_to_tensor=True)
+print(torch.cosine_similarity(rep[0], rep[1], dim=0))
+
 tokenized_text1 = tokenizer.tokenize(mask_text1)
 tokenized_text2 = tokenizer.tokenize(mask_text2)
 tokenized_text3 = tokenizer.tokenize(mask_text3)
 print(tokenized_text3)
+'''
 exit()
 tokenized_t = tokenizer.tokenize(mask_t)
 

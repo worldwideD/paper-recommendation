@@ -6,6 +6,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
+from sentence_transformers import SentenceTransformer
 from sklearn.metrics import roc_auc_score, average_precision_score, precision_score, recall_score, f1_score, ndcg_score
 from torchmetrics.functional.retrieval.ndcg import retrieval_normalized_dcg
 from torchmetrics import AUROC, Recall
@@ -20,7 +21,13 @@ from model import PredictModel
 
 def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_adj, msg_edges, train_x, val_x, test_x):
     total_steps = 0
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    GAT_layer = ["GAT", ]
+    optimizer_grouped_parameters = [
+        {"params": [p for n, p in model.named_parameters() if not any(nd in n for nd in GAT_layer)], },
+        {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in GAT_layer)], "lr": 1e-3},
+    ]
+    # optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = optim.Adam(optimizer_grouped_parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
     train_iterator = range(int(args.epochs))
 
     best, best_auc, best_ndcg, best_recall = 0., 0. ,0., 0.
@@ -47,14 +54,14 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
         optimizer.zero_grad()
         outputs = model(**inputs)
         loss = outputs[0]
-        # wandb.log({"loss": loss.item()}, step = total_steps)
+        wandb.log({"loss": loss.item()}, step = total_steps)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         if epoch == args.epochs-1:
             auc, ndcg, recall = evaluate(args, model, val_set, val_adj, val_x, 1)
         auc, ndcg, recall = evaluate(args, model, val_set, val_adj, val_x, 0)
-        # wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
+        wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
         if epoch >= args.epochs // 2 and ndcg > best:
             best = ndcg
             best_auc, best_ndcg, best_recall = auc, ndcg, recall
@@ -126,7 +133,7 @@ def main():
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     
-    # wandb.init(project="paper_recommendation")
+    wandb.init(project="paper_recommendation")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.device = device
@@ -138,8 +145,9 @@ def main():
         args.graph, args.metadata, args.title, args.textkey_dir)
 
     # get vectors
-    tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    Bertmodel = AutoModel.from_pretrained('bert-base-cased')
+    # tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
+    # Bertmodel = AutoModel.from_pretrained('bert-base-cased')
+    Bertmodel = SentenceTransformer('all-mpnet-base-v1')
     Bertmodel = Bertmodel.to(args.device)
     Bertmodel.eval()
     
@@ -147,7 +155,7 @@ def main():
     n = len(title_dict)
     for i in tqdm(range(n), desc="vecs"):
         text = [title_dict[i]['title']] + text_dict[i]['keyphrases']
-        vec = text2vec(text, tokenizer, Bertmodel, device) # [texts, emb_size]
+        vec = text2vec(text, Bertmodel, device) # [texts, emb_size]
         vec[torch.isnan(vec)] = 0.
         values = torch.tensor(text_dict[i]['value'], dtype=torch.float).unsqueeze(0).to(device)
         
@@ -155,10 +163,24 @@ def main():
         title_rep = vec[0].unsqueeze(0)
         v_total = values.sum()
         text_rep = text_rep / v_total
+        '''
+        if v_total.item() != 0:
+            rep = torch.stack([title_rep * 0.5, text_rep * 0.5])
+        else:
+            rep = torch.stack([title_rep, torch.zeros_like(title_rep)])
+        '''
+        
         if v_total.item() != 0:
             rep = title_rep * 0.5 + text_rep * 0.5
         else:
             rep = title_rep
+        
+        '''
+        if v_total.item() != 0:
+            rep = torch.cat([title_rep, text_rep], dim=-1)
+        else:
+            rep = torch.cat([title_rep, torch.zeros_like(title_rep)], dim=-1)
+        '''
         reps.append(rep)
     reps = torch.stack(reps, dim=0).squeeze(1)
     

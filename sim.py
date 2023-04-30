@@ -1,6 +1,7 @@
 import torch
 
-def text2vec(texts, tokenizer, model, device):
+def text2vec(texts, model, device):
+    '''
     sum = len(texts)
     seqlen = 2
     for text in texts:
@@ -35,7 +36,8 @@ def text2vec(texts, tokenizer, model, device):
             vec = torch.mean(sequence_output[i][1:lens[i]-1][:], dim=0)
             vecs.append(vec)
     
-    vecs = torch.stack(vecs, dim=0).to(device)
+    vecs = torch.stack(vecs, dim=0).to(device)'''
+    vecs = model.encode(texts, convert_to_tensor=True)
     return vecs
 
 def calc_similarity(h):
