@@ -51,6 +51,7 @@ def devide_edges(id_edges, datadict):
     test_node = len(test_node_list)
     train_node = len(train_node_list)
     val_node = len(val_node_list)
+    print("train nodes:{}\nval_nodes:{}\ntest_node:{}".format(train_node, val_node, test_node))
 
     train_edges, val_pos, val_neg, test_pos, test_neg = [], [], [], [], []
     # generate positive samples
@@ -129,7 +130,7 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
             id_edges.append((fr, to))
     
     print('{} number of nodes\n{} number of edges'.format(node, len(id_edges)))
-    
+
     # get examples
     msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes = devide_edges(id_edges, datadict)
     
@@ -208,3 +209,8 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
     
     print('read {} texts\n'.format(text_cnt))
     return msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes, title_dict, text_dict
+
+'''
+msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes, title_dict, text_dict = read_data(
+        "subgraph.txt", "acl-metadata.txt", "keyword_title.txt", "./papers_keyword")
+'''

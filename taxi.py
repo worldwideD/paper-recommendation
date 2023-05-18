@@ -16,24 +16,57 @@ from torchmetrics.functional.retrieval.ndcg import retrieval_normalized_dcg
 from torchmetrics import AUROC, Recall
 
 from sentence_transformers import SentenceTransformer
+'''
+t = torch.FloatTensor([1, 2, 3])
+for _ in range(10):
+    t_ = torch.zeros_like(t)
+    t_[0] = t[0] * 5 / 6 + t[1] / 6
+    t_[1] = t[1] * 5 / 7 + t[2] * 2 / 7
+    t_[2] = t[2] * 5 / 7 + t[1] * 2 / 7
+    t = t_
+    print(t, t.sum())
 
+exit()
+'''
+a = torch.arange(6).view(3, 2)
+b = torch.arange(8).view(4, 2)
+a = a.unsqueeze(1).repeat(1, 4, 1)
+b = b.repeat(3, 1, 1)
+print(a.size())
+print(b.size())
+print(a)
+print(b)
+exit(0)
+n = h.size()[0]
+h_ = h.transpose(0, 1)
+
+dot_pro = torch.matmul(h, h_)
+        
+len = torch.sqrt(torch.sum(h * h, dim=-1))
+len_sq = torch.matmul(len.unsqueeze(1), len.unsqueeze(0))
+sim = dot_pro / len_sq
+
+i = torch.eye(n).to(h)
+sim = sim - i * 9e15
+print(sim)  
+a, b = torch.topk(sim, 2, dim=1, largest=True, sorted=True)
+p = torch.arange(0, n, dtype=torch.long).unsqueeze(1).repeat(1, 2).view(-1)
+q = b.view(-1)
+v = a.view(-1)
+print(p, q)
+z = torch.zeros_like(sim)
+adj = z.index_put((p, q), v)
+
+
+i = torch.eye(n)
+adj = adj + i
+print(adj)
+d1 = torch.FloatTensor([1, 2, 3, 4])
+d2 = torch.FloatTensor([4, 3, 2, 1])
+print(adj / (d1.unsqueeze(1)) / (d2.unsqueeze(0)))
 # nltk.download('punkt')
 # a = np.array([[0.1, 0.8, 0.7, 0.3, 0.5, 0.34], [0.4, 0.6, 0.7, 0.3, 0.5, 0.55]])
 # b = np.array([[1, 0, 0, 1, 1, 1], [0, 1, 1, 0, 1, 1]])
-
-x = torch.tensor([1, 2])
-y = torch.tensor([3, 3])
-z = torch.stack([x, y])
-print(z)
-
-a = torch.FloatTensor([[1, 2], [2, 3]])
-b = torch.FloatTensor([[1, 2], [3, 3]])
-c = torch.FloatTensor([[3, 3], [4, 4]])
-l = torch.stack([a, b, c], dim=0)
-l1 = torch.mean(l, dim=1)
-print(l1)
-l2 = l.view(3, -1)
-print(l2)
 
 '''
 a = torch.tensor([0.93, 0.94, 0.91, 0.92, 0.6, 0.5, 0.8, 0.7])

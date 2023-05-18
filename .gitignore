@@ -7,4 +7,5 @@ release
 wandb
 
 *.txt
+*.out
 taxi.py

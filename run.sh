@@ -1,7 +1,7 @@
 python train.py --gpu 1 \
 --graph subgraph.txt \
---seed 4252 \
---epochs 5000 \
+--seed 36151 \
+--epochs 10000 \
 --hidden_size 768 \
 --layers 2 \
 --dropout 0.5 \

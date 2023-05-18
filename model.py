@@ -3,6 +3,17 @@ import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
 import torch.nn.functional as F
 
+def adj_helper(adj):
+    n = adj.size()[0]
+    i = torch.eye(n).to(adj.device)
+    adj = adj + i
+    # degree = adj.sum(dim=-1).unsqueeze(1)
+    # adj = adj / degree
+    d1 = adj.sum(dim=-1).sqrt().unsqueeze(1)
+    d2 = adj.sum(dim=0).sqrt().unsqueeze(0)
+    adj = adj / d1 / d2
+    return adj
+
 class GCNLayer(nn.Module):
     def __init__(self, in_feats, out_feats):
         super().__init__()
@@ -25,22 +36,56 @@ class GCN(nn.Module):
         self.n_layers = n_layers
         self.dropout = nn.Dropout(dropout)
         self.layers = nn.ModuleList([GCNLayer(in_feats, h_feats), ] + [GCNLayer(h_feats, h_feats) for _ in range(n_layers-1)])
-    
-    def adj_helper(self, adj):
-        n = adj.size()[0]
-        i = torch.eye(n).to(adj.device)
-        adj = adj + i
-        degree = adj.sum(dim=0).unsqueeze(1)
-        adj = adj / degree
-        return adj
 
     def forward(self, adj, input):
         z = input
-        a = self.adj_helper(adj)
+        a = adj_helper(adj)
         for l, gcnlayer in enumerate(self.layers):
             if l > 0:
                 z = self.dropout(z)
             z = gcnlayer(a, z)
+        return z
+
+class SAGELayer(nn.Module):
+    def __init__(self, in_feats, out_feats):
+        super().__init__()
+        self.in_feats = in_feats
+        self.out_feats = out_feats
+        self.W = nn.Parameter(torch.zeros(size=(in_feats + out_feats, out_feats, )))
+        nn.init.xavier_uniform_(self.W.data, gain=1.414)
+        self.Wp = nn.Parameter(torch.zeros(size=(in_feats, out_feats, )))
+        nn.init.xavier_uniform_(self.Wp.data, gain=1.414)
+        self.b = nn.Parameter(torch.zeros(size=(1, out_feats, )))
+        nn.init.xavier_uniform_(self.b.data, gain=1.414)
+
+    def forward(self, adj, input):
+        h = torch.matmul(input, self.Wp)
+        h = h + self.b
+        h = F.elu(h)
+        h = torch.matmul(adj, h)
+        h = torch.cat([input, h], dim=1)
+        h = torch.matmul(h, self.W)
+        h = F.elu(h)
+        return h
+
+class SAGE(nn.Module):
+    def __init__(self, in_feats, h_feats, n_layers, dropout):
+        super().__init__()
+        self.in_feats = in_feats
+        self.h_feats = h_feats
+        self.n_layers = n_layers
+        self.dropout = nn.Dropout(dropout)
+        self.layers = nn.ModuleList([SAGELayer(in_feats, h_feats), ] + [SAGELayer(h_feats, h_feats) for _ in range(n_layers-1)])
+
+    def forward(self, adj, input):
+        z = input
+        degree = adj.sum(dim=-1).unsqueeze(1)
+        degree = torch.clamp(degree, min=1)
+        adj = adj / degree
+        for l, gcnlayer in enumerate(self.layers):
+            if l > 0:
+                z = self.dropout(z)
+            z = gcnlayer(adj, z)
         return z
 
 class GATLayer(nn.Module):
@@ -62,10 +107,10 @@ class GATLayer(nn.Module):
         n = h.size()[0]
         h1 = torch.matmul(h, self.a1).repeat(1, n)
         h2 = torch.matmul(h, self.a2).view(1, n).repeat(n, 1)
-        a = F.softmax(self.leaky_relu(h1 + h2), dim=1)
-        zero_vec = -1e15 * torch.ones_like(a)
+        a = self.leaky_relu(h1 + h2)
+        zero_vec = -9e15 * torch.ones_like(a)
         att = torch.where(adj > 0, a, zero_vec)
-        att = F.softmax(a, dim=1)
+        att = F.softmax(att, dim=1)
         h = torch.matmul(att, h)
         return h
 
@@ -106,6 +151,7 @@ class GAT(nn.Module):
 
     def forward(self, adj, x):
         h = x
+        adj = adj_helper(adj)
         for l, GATLayer in enumerate(self.GATLayers):
             if l > 0:
                 h = self.dropout(h)
@@ -124,19 +170,23 @@ class PredictModel(nn.Module):
         self.top_k = top_k
 
         self.GNN1 = GCN(in_feats, h_feats, n_layers1, dropout)
-        # self.GNN1 = GAT(in_feats, h_feats, n_layers1, nheads, 0.2, dropout)
-        self.W = nn.Parameter(torch.zeros(size=(in_feats, h_feats, )))
-        nn.init.xavier_uniform_(self.W.data, gain=1.414)
+        # self.GNN1 = SAGE(in_feats, h_feats, n_layers1, dropout)
+        # self.GNN1 = GAT(in_feats, 256, n_layers1, nheads, 0.2, dropout)
+        self.W1 = nn.Parameter(torch.zeros(size=(in_feats, h_feats, )))
+        nn.init.xavier_uniform_(self.W1.data, gain=1.414)
+        self.W2 = nn.Parameter(torch.zeros(size=(in_feats, h_feats, )))
+        nn.init.xavier_uniform_(self.W2.data, gain=1.414)
         self.a1 = nn.Parameter(torch.zeros(size=(h_feats, 1, )))
         nn.init.xavier_uniform_(self.a1.data, gain=1.414)
         self.a2 = nn.Parameter(torch.zeros(size=(h_feats, 1, )))
         nn.init.xavier_uniform_(self.a2.data, gain=1.414)    
         self.leaky_relu = nn.LeakyReLU(0.2)
-        self.GNN2 = GCN(in_feats, h_feats, n_layers2, dropout)
-        # self.GNN2 = GAT(in_feats, h_feats, n_layers2, nheads, 0.2, dropout)
+        # self.GNN2 = GCN(in_feats, h_feats, n_layers2, dropout)
+        self.GNN2 = SAGE(in_feats, h_feats, n_layers2, dropout)
 
-        # self.bilinear = nn.Bilinear(in_feats, h_feats * 2, 1)
         self.PredW = nn.Parameter(torch.zeros(size=(h_feats * 2, h_feats * 2, )))
+        # self.PredW = nn.Parameter(torch.zeros(size=(h_feats + 256, h_feats + 256, )))
+        # self.PredW = nn.Parameter(torch.zeros(size=(h_feats, h_feats, )))
         nn.init.xavier_uniform_(self.PredW.data, gain=1.414)
         self.PredB = nn.Parameter(torch.zeros(size=(1, 1, )))
         nn.init.xavier_uniform_(self.PredB.data, gain=1.414)
@@ -146,53 +196,57 @@ class PredictModel(nn.Module):
         n = h.size()[0]
         h_ = h.transpose(0, 1)
         dot_pro = torch.matmul(h, h_)
+        
         len = torch.sqrt(torch.sum(h * h, dim=-1))
-        len_sq = torch.matmul(len.unsqueeze(0), len.unsqueeze(1))
+        len_sq = torch.matmul(len.unsqueeze(1), len.unsqueeze(0))
+        
         sim = dot_pro / len_sq
         i = torch.eye(n).to(h)
         sim = sim - i * 9e15
-        top = torch.topk(sim, self.top_k, dim=1, largest=True, sorted=True)[0][..., -1, None]
-        e = sim >= top
-        e = e.type(torch.float)
-        adj = sim * e
+        val, ids = torch.topk(sim, self.top_k, dim=1, largest=True, sorted=True)
+        p = torch.arange(0, n).to(sim).unsqueeze(1).repeat(1, self.top_k).view(-1)
+        p = p.type(torch.long)
+        q = ids.view(-1)
+        v = val.view(-1)
+        z = torch.zeros_like(sim).to(sim)
+        adj = z.index_put((p, q), v)
+        
         return adj
         
         n = h.size()[0]
-        h = torch.matmul(h, self.W)
-        h1 = torch.matmul(h, self.a1).repeat(1, n)
-        h2 = torch.matmul(h, self.a2).view(1, n).repeat(n, 1)
+        h1 = torch.tanh(torch.matmul(h, self.W1))
+        h2 = torch.tanh(torch.matmul(h, self.W2))
+        h1 = torch.matmul(h1, self.a1).repeat(1, n)
+        h2 = torch.matmul(h2, self.a2).view(1, n).repeat(n, 1)
         i = torch.eye(n).to(h.device)
         a = h1 + h2  - i * 9e15
-        # a = F.softmax(self.leaky_relu(a), dim=1)
         a = F.softmax(a, dim=1)
-        top = torch.topk(a, self.top_k, dim=1, largest=True, sorted=True)[0][..., -1, None]
-        e = a >= top
-        # e = e | e.transpose(0, 1)
-        e = e.type(torch.float)
-        # a = F.softmax(self.leaky_relu(h1 + h2 - (1 - e) * 9e15), dim=1)
-        a = F.softmax(h1 + h2 - (1 - e) * 9e15, dim=1)
-        adj = e * a
+        val, ids = torch.topk(a, self.top_k, dim=1, largest=True, sorted=True)
+        p = torch.arange(0, n).to(a).unsqueeze(1).repeat(1, self.top_k).view(-1)
+        p = p.type(torch.long)
+        q = ids.view(-1)
+        v = val.view(-1)
+        # z = torch.ones_like(a).to(a)
+        # z = z * (-9e15)
+        z = torch.zeros_like(a).to(a)
+        adj = z.index_put((p, q), v)
+        # adj = F.softmax(adj, dim=1)
         return adj
 
     def forward(self, src, dst, labels, adj, x, mode):
         m = len(src)
         a = torch.FloatTensor(adj).to(x.device)
-        n = x.size()[0]
-        # i = torch.eye(n).to(a.device)
-        # a = a + i
-        # x1 = torch.mean(x, dim=1).squeeze(1)
-        # x2 = x.view(n, -1)
         h = self.GNN1(a, x)
         sim_adj = self.get_sim_graph(x)
         h_ = self.GNN2(sim_adj, x)
         h = torch.cat([h, h_], dim=1)
         # h = h_
+        
         src = torch.LongTensor(src).to(x.device)
         dst = torch.LongTensor(dst).to(x.device)
         src_h = torch.index_select(h, 0, src)
         dst_h = torch.index_select(h, 0, dst)
         if mode == "train":
-            # logits = self.bilinear(src_h, dst_h)
             src_h = src_h.unsqueeze(1)
             dst_h = dst_h.unsqueeze(2)
             logits = src_h.matmul(self.PredW).matmul(dst_h).add(self.PredB).view(-1)
