@@ -7,8 +7,6 @@ def adj_helper(adj):
     n = adj.size()[0]
     i = torch.eye(n).to(adj.device)
     adj = adj + i
-    # degree = adj.sum(dim=-1).unsqueeze(1)
-    # adj = adj / degree
     d1 = adj.sum(dim=-1).sqrt().unsqueeze(1)
     d2 = adj.sum(dim=0).sqrt().unsqueeze(0)
     adj = adj / d1 / d2
@@ -80,7 +78,7 @@ class SAGE(nn.Module):
     def forward(self, adj, input):
         z = input
         degree = adj.sum(dim=-1).unsqueeze(1)
-        degree = torch.clamp(degree, min=1)
+        degree = torch.clamp(degree, min=1e-5)
         adj = adj / degree
         for l, gcnlayer in enumerate(self.layers):
             if l > 0:
@@ -159,19 +157,25 @@ class GAT(nn.Module):
         return h
 
 class PredictModel(nn.Module):
-    def __init__(self, in_feats, h_feats, h_hops, n_layers1, n_layers2, nheads, dropout, top_k):
+    def __init__(self, GNN1, GNN2, sim, in_feats, h_feats, n_layers1, n_layers2, nheads, dropout, top_k):
         super().__init__()
+        assert sim == "cos" or sim == "attn", "similarity calc should be cos or attn"
+        self.sim = sim
         self.in_feats = in_feats
         self.h_feats = h_feats
         self.n_layers1 = n_layers1
         self.n_layers2 = n_layers2
         self.dropout = nn.Dropout(dropout)
-        self.h_hops = h_hops
         self.top_k = top_k
 
-        self.GNN1 = GCN(in_feats, h_feats, n_layers1, dropout)
-        # self.GNN1 = SAGE(in_feats, h_feats, n_layers1, dropout)
-        # self.GNN1 = GAT(in_feats, 256, n_layers1, nheads, 0.2, dropout)
+        if GNN1 == "GCN":
+            self.GNN1 = GCN(in_feats, h_feats, n_layers1, dropout)
+        elif GNN1 == "GraphSAGE":
+            self.GNN1 = SAGE(in_feats, h_feats, n_layers1, dropout)
+        elif GNN1 == "GAT":
+            self.GNN1 = GAT(in_feats, h_feats, n_layers1, nheads, 0.2, dropout)
+        else:
+            assert 1 == 2, "GNN1 name error or not implemented"
         self.W1 = nn.Parameter(torch.zeros(size=(in_feats, h_feats, )))
         nn.init.xavier_uniform_(self.W1.data, gain=1.414)
         self.W2 = nn.Parameter(torch.zeros(size=(in_feats, h_feats, )))
@@ -181,66 +185,63 @@ class PredictModel(nn.Module):
         self.a2 = nn.Parameter(torch.zeros(size=(h_feats, 1, )))
         nn.init.xavier_uniform_(self.a2.data, gain=1.414)    
         self.leaky_relu = nn.LeakyReLU(0.2)
-        # self.GNN2 = GCN(in_feats, h_feats, n_layers2, dropout)
-        self.GNN2 = SAGE(in_feats, h_feats, n_layers2, dropout)
+        if GNN2 == "GraphSAGE":
+            self.GNN2 = SAGE(in_feats, h_feats, n_layers2, dropout)
+        elif GNN2 == "GCN":
+            self.GNN2 = GCN(in_feats, h_feats, n_layers2, dropout)
+        else:
+            assert 1 == 2, "GNN2 name error or not implemented"
 
         self.PredW = nn.Parameter(torch.zeros(size=(h_feats * 2, h_feats * 2, )))
-        # self.PredW = nn.Parameter(torch.zeros(size=(h_feats + 256, h_feats + 256, )))
-        # self.PredW = nn.Parameter(torch.zeros(size=(h_feats, h_feats, )))
         nn.init.xavier_uniform_(self.PredW.data, gain=1.414)
         self.PredB = nn.Parameter(torch.zeros(size=(1, 1, )))
         nn.init.xavier_uniform_(self.PredB.data, gain=1.414)
     
     def get_sim_graph(self, h):
+        if self.sim == "cos":
+            n = h.size()[0]
+            h_ = h.transpose(0, 1)
+            dot_pro = torch.matmul(h, h_)
+
+            len = torch.sqrt(torch.sum(h * h, dim=-1))
+            len_sq = torch.matmul(len.unsqueeze(1), len.unsqueeze(0))
+
+            sim = dot_pro / len_sq
+            i = torch.eye(n).to(h)
+            sim = sim - i * 9e15
+            val, ids = torch.topk(sim, self.top_k, dim=1, largest=True, sorted=True)
+            p = torch.arange(0, n).to(sim).unsqueeze(1).repeat(1, self.top_k).view(-1)
+            p = p.type(torch.long)
+            q = ids.view(-1)
+            v = val.view(-1)
+            z = torch.zeros_like(sim).to(sim)
+            adj = z.index_put((p, q), v)
         
-        n = h.size()[0]
-        h_ = h.transpose(0, 1)
-        dot_pro = torch.matmul(h, h_)
-        
-        len = torch.sqrt(torch.sum(h * h, dim=-1))
-        len_sq = torch.matmul(len.unsqueeze(1), len.unsqueeze(0))
-        
-        sim = dot_pro / len_sq
-        i = torch.eye(n).to(h)
-        sim = sim - i * 9e15
-        val, ids = torch.topk(sim, self.top_k, dim=1, largest=True, sorted=True)
-        p = torch.arange(0, n).to(sim).unsqueeze(1).repeat(1, self.top_k).view(-1)
-        p = p.type(torch.long)
-        q = ids.view(-1)
-        v = val.view(-1)
-        z = torch.zeros_like(sim).to(sim)
-        adj = z.index_put((p, q), v)
-        
-        return adj
-        
+            return adj
+
         n = h.size()[0]
         h1 = torch.tanh(torch.matmul(h, self.W1))
         h2 = torch.tanh(torch.matmul(h, self.W2))
         h1 = torch.matmul(h1, self.a1).repeat(1, n)
         h2 = torch.matmul(h2, self.a2).view(1, n).repeat(n, 1)
         i = torch.eye(n).to(h.device)
-        a = h1 + h2  - i * 9e15
+        a = h1 + h2 - i * 9e15
         a = F.softmax(a, dim=1)
         val, ids = torch.topk(a, self.top_k, dim=1, largest=True, sorted=True)
         p = torch.arange(0, n).to(a).unsqueeze(1).repeat(1, self.top_k).view(-1)
         p = p.type(torch.long)
         q = ids.view(-1)
         v = val.view(-1)
-        # z = torch.ones_like(a).to(a)
-        # z = z * (-9e15)
         z = torch.zeros_like(a).to(a)
         adj = z.index_put((p, q), v)
-        # adj = F.softmax(adj, dim=1)
         return adj
 
     def forward(self, src, dst, labels, adj, x, mode):
-        m = len(src)
         a = torch.FloatTensor(adj).to(x.device)
         h = self.GNN1(a, x)
         sim_adj = self.get_sim_graph(x)
         h_ = self.GNN2(sim_adj, x)
         h = torch.cat([h, h_], dim=1)
-        # h = h_
         
         src = torch.LongTensor(src).to(x.device)
         dst = torch.LongTensor(dst).to(x.device)

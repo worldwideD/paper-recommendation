@@ -209,8 +209,3 @@ def read_data(graphpath, metapath, titlepath, keydirpath):
     
     print('read {} texts\n'.format(text_cnt))
     return msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes, title_dict, text_dict
-
-'''
-msg_edges, train_pos, train_nodes, val_pos, val_neg, val_nodes, test_pos, test_neg, test_nodes, title_dict, text_dict = read_data(
-        "subgraph.txt", "acl-metadata.txt", "keyword_title.txt", "./papers_keyword")
-'''

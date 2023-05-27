@@ -16,17 +16,12 @@ import wandb
 from reader import read_data, generate_neg
 from sim import text2vec
 from tqdm import tqdm
-from graph import generate_adj, h_hop_subgraph, generate_full_adj, arrange_id
+from graph import generate_full_adj, arrange_id
 from utils import set_seed, collate_fn, gen_test_labels
 from model import PredictModel
 
 def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_adj, msg_edges, train_x, val_x, test_x):
     total_steps = 0 
-    GAT_layer = ["GAT", ]
-    optimizer_grouped_parameters = [
-        {"params": [p for n, p in model.named_parameters() if not any(nd in n for nd in GAT_layer)], },
-        {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in GAT_layer)], "lr": 1e-3},
-    ]
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     train_iterator = range(int(args.epochs))
 
@@ -54,16 +49,16 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
         optimizer.zero_grad()
         outputs = model(**inputs)
         loss = outputs[0]
-        # wandb.log({"loss": loss.item()}, step = total_steps)
+        wandb.log({"loss": loss.item()}, step = total_steps)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         auc, ndcg, recall = evaluate(args, model, val_set, val_adj, val_x, 0)
-        # wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
-        if epoch >= args.epochs // 5 and ndcg > best:
+        wandb.log({"dev AUC": auc, "dev ndcg": ndcg, "dev recall": recall}, step = total_steps)
+        if ndcg > best:
             best = ndcg
             best_auc, best_ndcg, best_recall = auc, ndcg, recall
-            test_auc, test_ndcg, test_recall, rks, its, tops = evaluate(args, model, test_set, test_adj, test_x, 1)
+            test_auc, test_ndcg, test_recall = evaluate(args, model, test_set, test_adj, test_x, 1)
 
         if (epoch + 1) % 100 == 0:
             print("after {} epochs, loss: {}".format(epoch+1, loss.item()))
@@ -71,9 +66,6 @@ def train(args, model, train_pos, val_set, test_set, train_adj, val_adj, test_ad
     
     print("best validate AUC score: {}   best ndcg: {}   best recall: {}".format(best_auc, best_ndcg, best_recall))
     print("test AUC score: {}    test ndcg: {}    test recall: {}".format(test_auc, test_ndcg, test_recall))
-    print(rks)
-    print(its)
-    print(tops)
 
 def evaluate(args, model, data, adj, x, flag):
     score, labels = [], data[2]
@@ -99,43 +91,8 @@ def evaluate(args, model, data, adj, x, flag):
     n, m = data[0].shape[0], data[1].shape[0]
     labels = labels.view(n, m)
     score = score.view(n, m)
-    if flag == 1:
-        rks, its, tops = [], [], []
-        for i in range(15):
-            its.append(m+i)
-            rk, top, sc = [], [], []
-            for j in range(m):
-                sc.append(score[i, j].item())
-            sc = np.array(sc)
-            sc = -np.sort(-sc)
-
-            for j in range(m):
-                if labels[i, j] > 0:
-                    r = 1
-                    s = score[i, j].item()
-                    for k in range(m):
-                        if sc[k] > s:
-                            r += 1
-                        else:
-                            break
-                    rk.append(r)
-            
-            for j in range(10):
-                for k in range(m):
-                    if score[i, k].item() == sc[j]:
-                        top.append(k)
-                        break
-            rk = np.array(rk)
-            rk = np.sort(rk)
-            rks.append(rk)
-            tops.append(top)
-        
+    
     top_n = args.ndcg_top_n
-    '''
-    thres = score.topk(top_n, largest=True, dim=1, sorted=True)[0][..., -1, None]
-    preds = score >= thres
-    preds = preds.to(labels)
-    '''
     _, ids = torch.topk(score, top_n, dim=1, largest=True, sorted=True)
     p = torch.arange(0, n).to(score).unsqueeze(1).repeat(1, top_n).view(-1)
     p = p.type(torch.long)
@@ -147,8 +104,6 @@ def evaluate(args, model, data, adj, x, flag):
     rec = recall(preds, labels).item()
     ndcg_list = [retrieval_normalized_dcg(score[i], labels[i], top_n) for i in range(n)]
     ndcg = torch.mean(torch.stack(ndcg_list)).item()
-    if flag == 1:
-        return auc, ndcg, rec, rks, its, tops
     return auc, ndcg, rec
 
 def main():
@@ -159,7 +114,9 @@ def main():
     parser.add_argument("--title", default="keyword_title.txt", type=str)
     parser.add_argument("--textkey_dir", default="./papers_keyword", type=str)
 
-    parser.add_argument("--hops", default=2, type=int, help="hops of subgraphs.")
+    parser.add_argument("--GNN_cite", default="GCN", type=str, help="GNN for citation graph")
+    parser.add_argument("--GNN_sim", default="GraphSAGE", type=str, help="GNN for similarity graph")
+    parser.add_argument("--sim_calc", default="cos", type=str, help="way for calculate similarity")
     parser.add_argument("--layers", default=3, type=int, help="num of layers of gnn.")
     parser.add_argument("--batch_size", default=5, type=int, help="Batch size.")
     parser.add_argument("--learning_rate", default=1e-4, type=float, help="The initial learning rate.")
@@ -176,7 +133,7 @@ def main():
     args = parser.parse_args()
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     
-    # wandb.init(project="paper_recommendation")
+    wandb.init(project="paper_recommendation")
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.device = device
@@ -188,10 +145,7 @@ def main():
         args.graph, args.metadata, args.title, args.textkey_dir)
 
     # get vectors
-    # tokenizer = AutoTokenizer.from_pretrained('bert-base-cased')
-    # Bertmodel = AutoModel.from_pretrained('bert-base-cased')
     Bertmodel = SentenceTransformer('all-mpnet-base-v1')
-    # Bertmodel = SentenceTransformer('bert-base-nli-mean-tokens')
     Bertmodel = Bertmodel.to(args.device)
     Bertmodel.eval()
     
@@ -207,12 +161,6 @@ def main():
         title_rep = vec[0].unsqueeze(0)
         v_total = values.sum()
         text_rep = text_rep / v_total
-        '''
-        if v_total.item() != 0:
-            rep = torch.cat([title_rep, text_rep], dim=-1)
-        else:
-            rep = torch.cat([title_rep, torch.zeros_like(title_rep)], dim=-1)
-        '''
         
         if v_total.item() != 0:
             rep = title_rep * 0.5 + text_rep * 0.5
@@ -261,7 +209,6 @@ def main():
     ids = ids.cpu()
     test_titles = ''
     for i in range(n):
-        # test_titles.append(title_dict[ids[i]]['title'])
         test_titles = test_titles + str(i) + '  ' + title_dict[ids[i].item()]['title'] + '\n'
     f = codecs.open("title.txt", 'w', 'utf-8')
     f.write(test_titles)
@@ -270,7 +217,7 @@ def main():
     train_set = np.array(train_set)
     msg = np.array(msg)
     model = PredictModel(
-        in_feats=768, h_feats=args.hidden_size, h_hops=args.hops, n_layers1=args.layers, n_layers2=args.layers, nheads=args.heads, dropout=args.dropout, top_k=args.top_k)
+        GNN1=args.GNN_cite, GNN2=args.GNN_sim, sim=args.sim_calc, in_feats=768, h_feats=args.hidden_size, n_layers1=args.layers, n_layers2=args.layers, nheads=args.heads, dropout=args.dropout, top_k=args.top_k)
     model = model.to(device)
 
     train(args, model, train_set, val_set, test_set, train_adj, val_adj, test_adj, msg, train_x, val_x, test_x)

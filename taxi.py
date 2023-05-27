@@ -36,6 +36,10 @@ print(a.size())
 print(b.size())
 print(a)
 print(b)
+c = a+b
+c = c.view(12, 2)
+d = torch.arange(2).unsqueeze(0)
+print(c+d)
 exit(0)
 n = h.size()[0]
 h_ = h.transpose(0, 1)

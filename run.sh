@@ -1,8 +1,11 @@
 python train.py --gpu 1 \
 --graph subgraph.txt \
---seed 36151 \
+--seed 4621 \
 --epochs 10000 \
 --hidden_size 768 \
+--GNN_cite GCN \
+--GNN_sim GraphSAGE \
+--sim_calc attn \
 --layers 2 \
 --dropout 0.5 \
 --learning_rate 1e-4 \

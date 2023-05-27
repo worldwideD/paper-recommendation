@@ -47,24 +47,7 @@ def wry(txt, path):  # 写入txt文件
     f.write(txt)
     f.close()
     return path
-'''
-from keybert import KeyBERT
 
-model = KeyBERT('distilbert-base-nli-mean-tokens')
-
-# 用keybert提取标题关键词
-def keyword_title(metadata, wrypath):
-    outall = ''
-
-    for data in metadata:
-        title = data['title']
-        echout1 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(1, 1), use_mmr=True)
-        echout2 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(2, 2), use_mmr=True)
-        echout3 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(3, 3), use_mmr=True)
-        outall = outall + data['id'] + '\n' + title + '\n' + befwry(echout1) + befwry(echout2) + befwry(echout3)
-
-    wry(outall, wrypath)
-'''
 # 读入citation network
 def read_graphdata(path):
     with codecs.open(path, 'r', 'utf-8', 'ignore') as f:
@@ -99,9 +82,28 @@ def get_paperlist(dict, path):
     
     print('paper paths done!')
     return paperpathlist, paperlist
+'''
+from keybert import KeyBERT
+
+model = KeyBERT('distilbert-base-nli-mean-tokens')
+
+# 用keybert提取标题关键词
+def keyword_title(metadata, wrypath):
+    outall = ''
+
+    for data in metadata:
+        title = data['title']
+        echout1 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(1, 1), use_mmr=True)
+        echout2 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(2, 2), use_mmr=True)
+        echout3 = model.extract_keywords(title, top_n=5, keyphrase_ngram_range=(3, 3), use_mmr=True)
+        outall = outall + data['id'] + '\n' + title + '\n' + befwry(echout1) + befwry(echout2) + befwry(echout3)
+
+    wry(outall, wrypath)
+'''
 
 import spacy
 # 必须导入pytextrank，虽然表面上没用上，
+
 '''
 import pytextrank
 
